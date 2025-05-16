@@ -1,0 +1,78 @@
+#include <WiFi.h>
+#include <ESP_Mail_Client.h>
+
+// WiFi credentials
+#define WIFI_SSID "Bujji"
+#define WIFI_PASSWORD "0317171126"
+
+// SMTP credentials-
+#define SMTP_HOST "smtp.gmail.com"
+#define SMTP_PORT 465
+#define AUTHOR_EMAIL "borragayithri1706@gmail.com"
+#define AUTHOR_PASSWORD "rcnc qhtv kybi gubw"  // Use App Password
+
+#define RECIPIENT_EMAIL "gopireddyumamaheswari7@gmail.com"
+
+// Gas sensor pin and threshold
+#define GAS_SENSOR_PIN 36  // A0 pin on ESP32
+#define GAS_THRESHOLD 3000  // Adjust based on your sensor
+
+SMTPSession smtp;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(GAS_SENSOR_PIN, INPUT);
+
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
+  }
+  Serial.println("\nConnected to WiFi");
+}
+
+void loop() {
+  int sensorValue = analogRead(GAS_SENSOR_PIN);
+  Serial.println("Gas Sensor Value: " + String(sensorValue));
+  delay(2000);
+
+  if (sensorValue > GAS_THRESHOLD) {
+    Serial.println("Gas level exceeded threshold! Sending alert email...");
+
+    // Email setup
+    smtp.debug(1);
+
+    ESP_Mail_Session session;
+    session.server.host_name = SMTP_HOST;
+    session.server.port = SMTP_PORT;
+    session.login.email = AUTHOR_EMAIL;
+    session.login.password = AUTHOR_PASSWORD;
+    session.login.user_domain = "";
+
+    SMTP_Message message;
+    message.sender.name = "ESP32 Gas Sensor";
+    message.sender.email = AUTHOR_EMAIL;
+    message.subject = "⚠️ GAS LEAK ALERT!";
+    message.addRecipient("User", RECIPIENT_EMAIL);
+    message.text.content = "Warning! Gas concentration is high.\nSensor Value: " + String(sensorValue);
+    message.text.charSet = "us-ascii";
+    message.text.transfer_encoding = Content_Transfer_Encoding::enc_7bit;
+
+    if (!smtp.connect(&session)) {
+      Serial.println("SMTP connection failed.");
+      return;
+    }
+
+    if (!MailClient.sendMail(&smtp, &message)) {
+      Serial.println("Error sending Email, " + smtp.errorReason());
+    } else {
+      Serial.println("Alert email sent successfully!");
+    }
+
+    smtp.closeSession();
+
+    delay(60000); // Avoid spamming emails; wait 60 seconds
+  }
+}
+
